@@ -14,8 +14,8 @@ class Model{
 
     protected $query;
 
-    protected $sql, $data = [], $params;
-
+    protected $select = '*';
+    protected $where, $values = [];
     protected $orderBy;
 
     protected $table;
@@ -58,8 +58,37 @@ class Model{
         return $this;
     }
 
+    public function select(...$columns){
+        $this->select = implode(', ', $columns);
+        return $this;
+    }
+
+    public function where($column, $operator, $value = null){
+
+        if ($value == null) {
+            $value = $operator;
+            $operator = '=';
+        }
+
+        if ($this->where) {
+            $this->where .= " AND {$column} {$operator} ?";
+        } else {
+            $this->where = "{$column} {$operator} ?";
+        }
+
+        $this->values[] = $value;
+
+        return $this;
+
+    }
+
     public function orderBy($column, $order = 'ASC'){
-        $this->orderBy = " ORDER BY {$column} {$order}";
+        
+        if ($this->orderBy) {
+            $this->orderBy .= ", {$column} {$order}";
+        } else {
+            $this->orderBy = "{$column} {$order}";
+        }
 
         return $this;
     }
@@ -67,7 +96,18 @@ class Model{
     public function first(){
 
         if (empty($this->query)) {
-            $this->query($this->sql, $this->data, $this->params);
+
+            $sql = "SELECT {$this->select} FROM {$this->table}";
+            
+            if ($this->where) {
+                $sql .= " WHERE {$this->where}";
+            }
+
+            if ($this->orderBy) {
+                $sql .= " ORDER BY {$this->orderBy}";
+            }
+
+            $this->query($sql, $this->values);
         }
 
         return $this->query->fetch_assoc();
@@ -75,7 +115,18 @@ class Model{
 
     public function get(){
         if (empty($this->query)) {
-            $this->query($this->sql, $this->data, $this->params);
+
+            $sql = "SELECT {$this->select} FROM {$this->table}";
+            
+            if ($this->where) {
+                $sql .= " WHERE {$this->where}";
+            }
+
+            if ($this->orderBy) {
+                $sql .= " ORDER BY {$this->orderBy}";
+            }
+
+            $this->query($sql, $this->values);
         }
 
         return $this->query->fetch_all(MYSQLI_ASSOC);
@@ -85,21 +136,25 @@ class Model{
     {
         $page = isset($_GET['page']) ? (int) $_GET['page'] : 1;
 
+        if (empty($this->query)) {
 
-        if ($this->sql) {
+            $sql = "SELECT {$this->select} FROM {$this->table}";
             
-            $sql = $this->sql . " LIMIT " . ($page - 1) * $cant . ", $cant";
-            $data = $this->query($sql, $this->data, $this->params)->get();
+            if ($this->where) {
+                $sql .= " WHERE {$this->where}";
+            }
 
-        }else{
-            $sql = "SELECT SQL_CALC_FOUND_ROWS * FROM {$this->table} LIMIT " . ($page - 1) * $cant . ", $cant";
-            $data = $this->query($sql)->get();
+            if ($this->orderBy) {
+                $sql .= " ORDER BY {$this->orderBy}";
+            }
+
+            $sql .= " LIMIT " . ($page - 1) * $cant . ", $cant";
+
+            $data = $this->query($sql, $this->values)
+                        ->get();
         }
 
-
-
         $total = $this->query("SELECT FOUND_ROWS() as total")->first()['total'];
-        
 
         //Recuperar uri
         $uri = $_SERVER['REQUEST_URI'];
@@ -125,7 +180,6 @@ class Model{
 
     }
 
-
     //Consultas
     public function all(){
         $sql = "SELECT * FROM {$this->table}";
@@ -137,26 +191,6 @@ class Model{
         $sql = "SELECT * FROM {$this->table} WHERE id = ?";
 
         return $this->query($sql, [$id])->first();
-    }
-
-    public function where($column, $operator, $value = null){
-
-        if ($value == null) {
-            $value = $operator;
-            $operator = '=';
-        }
-
-        if ($this->sql) {
-            $this->sql .= " AND {$column} {$operator} ?";
-        }else{
-            $this->sql = "SELECT SQL_CALC_FOUND_ROWS * FROM {$this->table} WHERE {$column} {$operator} ?";
-        }
-        $this->data[] = $value;
-
-        /* $this->query($sql, [$value]); */
-
-        return $this;
-
     }
 
     public function create($data){
